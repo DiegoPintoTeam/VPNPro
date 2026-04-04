@@ -53,7 +53,10 @@
                         style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
                   <i class="fas fa-pen"></i>
                 </button>
-                <form method="POST" action="{{ url_for('admin.toggle_reseller', reseller_id=r.id) }}" style="display:flex;align-items:stretch;">
+                    <form method="POST" action="{{ url_for('admin.toggle_reseller', reseller_id=r.id) }}"
+                      class="form-confirm" style="display:flex;align-items:stretch;"
+                      data-confirm-scope="REVENDEDORES"
+                      data-msg="{% if r.is_active %}¿Desactivar el revendedor '{{ 'Admin' if r.note == '__SYSTEM_ADMIN_OWNER__' else r.username }}'?{% else %}¿Activar el revendedor '{{ 'Admin' if r.note == '__SYSTEM_ADMIN_OWNER__' else r.username }}'?{% endif %}">
                   <button type="submit" class="btn btn-warning" title="Activar/Desactivar"
                           style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
                     <i class="fas fa-power-off"></i>
@@ -61,6 +64,7 @@
                 </form>
                 <form method="POST" action="{{ url_for('admin.delete_reseller', reseller_id=r.id) }}"
                       class="form-confirm" style="display:flex;align-items:stretch;"
+                      data-confirm-scope="REVENDEDORES"
                       data-msg="¿Eliminar el revendedor '{{ 'Admin' if r.note == '__SYSTEM_ADMIN_OWNER__' else r.username }}'? Sus usuarios pasarán al Administrador.">
                   <button type="submit" class="btn btn-danger" title="Eliminar"
                           style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">

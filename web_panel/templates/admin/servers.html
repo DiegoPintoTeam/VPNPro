@@ -95,7 +95,9 @@
                     <i class="fas fa-network-wired"></i>
                   </button>
                   <form method="POST" action="{{ url_for('admin.toggle_server', server_id=sv.id) }}"
-                        style="display:flex;align-items:stretch;">
+                    class="form-confirm" style="display:flex;align-items:stretch;"
+                    data-confirm-scope="SERVIDORES"
+                    data-msg="{% if sv.is_active %}¿Desactivar el servidor '{{ sv.name }}'?{% else %}¿Activar el servidor '{{ sv.name }}'?{% endif %}">
                     <button type="submit" class="btn btn-warning"
                             title="Activar/Desactivar"
                             style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
@@ -115,7 +117,8 @@
                   </form>
                   <form method="POST" action="{{ url_for('admin.delete_server', server_id=sv.id) }}"
                     class="form-confirm" style="display:flex;align-items:stretch;"
-                    data-msg="{% if transfer.get('target_name') %}¿Eliminar el servidor '{{ sv.name }}'? Se transferirán {{ transfer.get('reseller_count', 0) }} revendedor(es) y {{ transfer.get('user_count', 0) }} usuario(s) VPN al servidor '{{ transfer.get('target_name') }}' antes de borrar este VPS del panel.{% else %}¿Eliminar el servidor '{{ sv.name }}'? No hay otro servidor activo disponible para transferir {{ transfer.get('reseller_count', 0) }} revendedor(es) y {{ transfer.get('user_count', 0) }} usuario(s) VPN, por lo que la acción fallará.{% endif %}">
+                    data-confirm-scope="SERVIDORES"
+                    data-msg="{% if transfer.get('target_name') %}¿Eliminar el servidor '{{ sv.name }}'?&#10;Se transferirán {{ transfer.get('reseller_count', 0) }} revendedor(es) y {{ transfer.get('user_count', 0) }} usuario(s) VPN&#10;al servidor '{{ transfer.get('target_name') }}' antes de borrar este VPS del panel.{% else %}¿Eliminar el servidor '{{ sv.name }}'? No hay otro servidor activo&#10;disponible para transferir {{ transfer.get('reseller_count', 0) }} revendedor(es) y {{ transfer.get('user_count', 0) }} usuario(s)&#10;VPN, por lo que la acción fallará.{% endif %}">
                     <button type="submit" class="btn btn-danger"
                         title="Eliminar"
                             style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">

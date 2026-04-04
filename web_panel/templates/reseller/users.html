@@ -378,7 +378,13 @@ document.querySelectorAll('.btn-delete-user').forEach(btn => {
     const userId = this.dataset.userId;
     const username = this.dataset.username;
     
-    if (!confirm(`¿Eliminar el usuario '${username}' del servidor?`)) {
+    const isConfirmed = await window.confirmPanelAction({
+      title: '¿Confirmar?',
+      scope: 'USUARIOS VPN',
+      message: `¿Eliminar el usuario '${username}' del servidor?`,
+    });
+
+    if (!isConfirmed) {
       return;
     }
 
