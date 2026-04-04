@@ -6,6 +6,9 @@
 bash <(curl -fsSL https://raw.githubusercontent.com/DiegoPintoTeam/VPNPro/main/Install/install_web_panel.sh)
 ```
 
+
+
+
 El instalador realiza automaticamente:
 
 - Instalacion de dependencias del sistema y Python
