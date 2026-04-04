@@ -233,7 +233,8 @@
 
           <form method="post" action="{{ url_for('admin.restore_backup') }}" enctype="multipart/form-data"
             class="row g-2 form-confirm"
-            data-msg="Esta acción reemplazará la base de datos actual. ¿Deseas continuar?">
+            data-confirm-scope="RESPALDOS"
+            data-msg="Esta acción reemplazará la base de datos actual del panel.&#10;¿Deseas continuar?">
           <div class="col-12">
             <label class="form-label">Restaurar desde archivo .zip</label>
             <input type="file" class="form-control" name="backup_file" accept=".zip" required>
@@ -276,6 +277,7 @@
                     </a>
                     <form method="post" action="{{ url_for('admin.delete_backup', filename=b.name) }}"
                           class="d-inline form-confirm"
+                        data-confirm-scope="RESPALDOS"
                           data-msg="¿Eliminar esta copia del historial?">
                       <button class="btn btn-xs btn-danger" type="submit"
                               style="border-radius:6px; box-shadow:0 2px 4px rgba(0,0,0,0.2); transition:all 0.2s ease; font-weight:500;">
@@ -294,6 +296,7 @@
 
         <form method="post" action="{{ url_for('admin.restart_panel_service') }}"
               class="mt-2 form-confirm"
+            data-confirm-scope="PANEL WEB"
               data-msg="Se reiniciara solo el servicio web local del panel (NO reinicia VPS). Continuar?">
           <button class="btn btn-outline-secondary" type="submit">
             <i class="fas fa-rotate-right me-1"></i>Reiniciar panel web local (no VPS)

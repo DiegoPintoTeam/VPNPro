@@ -425,7 +425,7 @@ document.querySelectorAll('.js-reboot-btn').forEach(button => {
 });
 
 document.querySelectorAll('.js-reboot-form').forEach(form => {
-  form.addEventListener('submit', function (e) {
+  form.addEventListener('submit', async function (e) {
     e.preventDefault();
     const serverId = this.dataset.serverId;
     const serverName = this.dataset.serverName || 'este VPS';
@@ -436,27 +436,18 @@ document.querySelectorAll('.js-reboot-form').forEach(form => {
       return;
     }
 
-    const css = getComputedStyle(document.body);
-    Swal.fire({
-      icon: 'warning',
+    const isConfirmed = await window.confirmPanelAction({
       title: '¿Confirmar?',
-      text: `¿Reiniciar el VPS '${serverName}'? La conexión se cortará temporalmente.`,
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#6b7280',
-      confirmButtonText: 'Sí, continuar',
-      cancelButtonText: 'Cancelar',
-      background: css.getPropertyValue('--bg-card').trim() || '#111b27',
-      color: css.getPropertyValue('--text-primary').trim() || '#e5edf5',
-    }).then(result => {
-      if (!result.isConfirmed) return;
-
-      const until = Date.now() + REBOOT_COOLDOWN_MS;
-      localStorage.setItem(rebootLockKey(serverId), String(until));
-      const button = this.querySelector('.js-reboot-btn');
-      applyRebootCooldown(button, REBOOT_COOLDOWN_MS);
-      this.submit();
+      scope: 'SERVIDORES',
+      message: `¿Reiniciar el VPS '${serverName}'?\nLa conexión se cortará temporalmente.`,
     });
+    if (!isConfirmed) return;
+
+    const until = Date.now() + REBOOT_COOLDOWN_MS;
+    localStorage.setItem(rebootLockKey(serverId), String(until));
+    const button = this.querySelector('.js-reboot-btn');
+    applyRebootCooldown(button, REBOOT_COOLDOWN_MS);
+    this.submit();
   });
 });
 

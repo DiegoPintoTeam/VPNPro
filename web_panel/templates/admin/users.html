@@ -170,6 +170,7 @@
                 {% if u.is_blocked %}
                 <form method="POST" action="{{ url_for('admin.unblock_user', user_id=u.id) }}" class="form-confirm"
                       style="display:flex;align-items:stretch;"
+                      data-confirm-scope="USUARIOS VPN"
                       data-msg="¿Desbloquear el usuario '{{ u.username }}'?">
                   <button type="submit" class="btn btn-success" title="Desbloquear usuario"
                           style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
@@ -179,6 +180,7 @@
                 {% else %}
                 <form method="POST" action="{{ url_for('admin.block_user', user_id=u.id) }}" class="form-confirm"
                       style="display:flex;align-items:stretch;"
+                      data-confirm-scope="USUARIOS VPN"
                       data-msg="¿Bloquear el usuario '{{ u.username }}'? Se cerrarán sus sesiones activas.">
                   <button type="submit" class="btn btn-warning" title="Bloquear usuario"
                           style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
