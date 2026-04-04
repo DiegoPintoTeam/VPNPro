@@ -1,0 +1,662 @@
+{% extends "base.html" %}
+{% block title %}Servidores · Admin{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+  <div>
+    <h4 class="page-title"><i class="fas fa-server me-2 text-accent"></i>Servidores VPS</h4>
+    <span class="text-muted small">Gestiona los servidores donde se alojan los usuarios VPN</span>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <form method="POST" action="{{ url_for('admin.sync_all_servers_users') }}"
+          class="d-inline form-confirm"
+          data-msg="¿Sincronizar usuarios de todos los servidores activos con el panel?">
+      <button type="submit" class="btn btn-outline-success">
+        <i class="fas fa-arrows-rotate me-2"></i>Sincronizar todos
+      </button>
+    </form>
+    <button class="btn btn-accent" data-bs-toggle="modal" data-bs-target="#addServerModal">
+      <i class="fas fa-plus me-2"></i>Agregar servidor
+    </button>
+  </div>
+</div>
+
+<div class="vpn-card">
+  <div class="vpn-card-header gap-3 flex-wrap justify-content-between">
+    <div class="d-flex align-items-center">
+      <i class="fas fa-server me-2 text-accent"></i>Lista de servidores
+    </div>
+  </div>
+  <div class="vpn-card-body p-0">
+    {% if servers %}
+      <div class="table-responsive">
+        <table class="table table-dark table-hover mb-0" id="serversTable">
+          <thead>
+            <tr>
+              <th>#</th><th>Nombre</th><th>IP / Puerto</th><th>Usuario SSH</th>
+              <th>Revendedores</th><th>Estado</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sv in servers %}
+            {% set transfer = transfer_preview.get(sv.id, {}) %}
+            <tr>
+              <td class="text-muted">{{ sv.id }}</td>
+              <td class="fw-semibold text-light">
+                {{ sv.name }}
+                {% if primary_server_id == sv.id %}
+                  <span class="badge bg-warning text-dark ms-1">Principal</span>
+                {% endif %}
+                <small class="d-block mt-1">
+                  {% if transfer.get('target_name') %}
+                  <span class="badge bg-info text-dark">Destino de transferencia: {{ transfer.get('target_name') }}</span>
+                  {% else %}
+                  <span class="badge bg-danger">Sin destino de transferencia</span>
+                  {% endif %}
+                </small>
+              </td>
+              <td><code>{{ sv.ip }}:{{ sv.port }}</code></td>
+              <td>{{ sv.ssh_user }}</td>
+              <td>
+                <span class="badge bg-secondary">{{ transfer.get('reseller_count', 0) }}</span>
+                <small class="text-muted d-block mt-1">{{ transfer.get('user_count', 0) }} usuario(s)</small>
+              </td>
+              <td>
+                <span class="badge {{ 'bg-success' if sv.is_active else 'bg-danger' }}">
+                  {{ 'Activo' if sv.is_active else 'Inactivo' }}
+                </span>
+              </td>
+              <td>
+                <div style="display:flex;flex-wrap:nowrap;align-items:center;gap:4px;">
+                  <button class="btn btn-info btn-test-conn" data-id="{{ sv.id }}"
+                          title="Probar conexión"
+                          style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
+                    <i class="fas fa-plug"></i>
+                  </button>
+                  <form method="POST" action="{{ url_for('admin.sync_server_users', server_id=sv.id) }}"
+                        class="form-confirm" style="display:flex;align-items:stretch;"
+                        data-msg="¿Sincronizar usuarios del servidor '{{ sv.name }}' con el panel?">
+                    <button type="submit" class="btn btn-success"
+                            title="Sincronizar usuarios"
+                            style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
+                      <i class="fas fa-sync"></i>
+                    </button>
+                  </form>
+                  <button type="button" class="btn btn-primary"
+                          data-bs-toggle="modal" data-bs-target="#editServerModal{{ sv.id }}"
+                          title="Editar servidor"
+                          style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
+                    <i class="fas fa-pen"></i>
+                  </button>
+                  <button type="button" class="btn btn-secondary js-open-ports-btn"
+                          data-bs-toggle="modal" data-bs-target="#portsServerModal{{ sv.id }}"
+                          title="Abrir puertos"
+                          style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
+                    <i class="fas fa-network-wired"></i>
+                  </button>
+                  <form method="POST" action="{{ url_for('admin.toggle_server', server_id=sv.id) }}"
+                        style="display:flex;align-items:stretch;">
+                    <button type="submit" class="btn btn-warning"
+                            title="Activar/Desactivar"
+                            style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
+                      <i class="fas fa-power-off"></i>
+                    </button>
+                  </form>
+                  <form method="POST" action="{{ url_for('admin.reboot_server', server_id=sv.id) }}"
+                        class="js-reboot-form" style="display:flex;align-items:stretch;"
+                        data-server-id="{{ sv.id }}"
+                        data-server-name="{{ sv.name }}">
+                    <button type="submit" class="btn btn-dark js-reboot-btn"
+                            data-server-id="{{ sv.id }}"
+                            title="Reiniciar VPS"
+                            style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
+                      <i class="fas fa-rotate-right"></i>
+                    </button>
+                  </form>
+                  <form method="POST" action="{{ url_for('admin.delete_server', server_id=sv.id) }}"
+                    class="form-confirm" style="display:flex;align-items:stretch;"
+                    data-msg="{% if transfer.get('target_name') %}¿Eliminar el servidor '{{ sv.name }}'? Se transferirán {{ transfer.get('reseller_count', 0) }} revendedor(es) y {{ transfer.get('user_count', 0) }} usuario(s) VPN al servidor '{{ transfer.get('target_name') }}' antes de borrar este VPS del panel.{% else %}¿Eliminar el servidor '{{ sv.name }}'? No hay otro servidor activo disponible para transferir {{ transfer.get('reseller_count', 0) }} revendedor(es) y {{ transfer.get('user_count', 0) }} usuario(s) VPN, por lo que la acción fallará.{% endif %}">
+                    <button type="submit" class="btn btn-danger"
+                        title="Eliminar"
+                            style="width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;flex-shrink:0;">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            <!-- Modal: Editar servidor -->
+            <div class="modal fade" id="editServerModal{{ sv.id }}" tabindex="-1">
+              <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content bg-card border-card">
+                  <div class="modal-header border-card">
+                    <h5 class="modal-title"><i class="fas fa-pen me-2 text-accent"></i>Editar Servidor</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                  </div>
+                  <form method="POST" action="{{ url_for('admin.edit_server', server_id=sv.id) }}">
+                    <div class="modal-body">
+                      <div class="row g-3">
+                        <div class="col-12">
+                          <label class="form-label-dark">Nombre del Servidor</label>
+                          <input type="text" name="name" class="form-control form-control-dark"
+                                 value="{{ sv.name }}" required maxlength="100">
+                        </div>
+                        <div class="col-8">
+                          <label class="form-label-dark">IP / Hostname</label>
+                          <input type="text" name="ip" class="form-control form-control-dark"
+                                 value="{{ sv.ip }}" required maxlength="45">
+                        </div>
+                        <div class="col-4">
+                          <label class="form-label-dark">Puerto SSH</label>
+                          <input type="number" name="port" class="form-control form-control-dark"
+                                 value="{{ sv.port }}" min="1" max="65535" required>
+                        </div>
+                        <div class="col-6">
+                          <label class="form-label-dark">Usuario SSH</label>
+                          <input type="text" name="ssh_user" class="form-control form-control-dark"
+                                 value="{{ sv.ssh_user }}" maxlength="50" required>
+                        </div>
+                        <div class="col-6">
+                          <label class="form-label-dark">Contraseña SSH (opcional)</label>
+                          <input type="password" name="ssh_password" class="form-control form-control-dark"
+                                 placeholder="Dejar vacío para mantener actual">
+                        </div>
+                        <div class="col-12">
+                          <label class="form-label-dark">Descripción (opcional)</label>
+                          <input type="text" name="description" class="form-control form-control-dark"
+                                 value="{{ sv.description or '' }}" maxlength="200">
+                        </div>
+                      </div>
+                    </div>
+                    <div class="modal-footer border-card">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                      <button type="submit" class="btn btn-accent">
+                        <i class="fas fa-check me-2"></i>Guardar cambios
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal fade" id="portsServerModal{{ sv.id }}" tabindex="-1">
+              <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content bg-card border-card">
+                  {% set module_info = port_modules_status.get(sv.id, {}) %}
+                  <div class="modal-header border-card">
+                    <h5 class="modal-title"><i class="fas fa-network-wired me-2 text-accent"></i>Abrir Puertos</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                  </div>
+                  <form method="POST" action="{{ url_for('admin.open_server_port', server_id=sv.id) }}" class="js-port-form" data-server-id="{{ sv.id }}" id="openServerPortForm{{ sv.id }}">
+                    <div class="modal-body">
+                      <p class="text-muted small mb-3">Servidor: <strong>{{ sv.name }}</strong></p>
+                      <div class="rounded-3 p-3 mb-3"
+                           style="border:1px solid var(--border-color, rgba(148,163,184,.25)); background:var(--bg-soft, rgba(15,23,42,.35));">
+                        <div class="small text-uppercase mb-2" style="color:var(--text-muted, #94a3b8);">Puertos activos en este VPS</div>
+                        <div class="row g-2 small">
+                          {% for key in ['http_custom', 'ssl_tunnel', 'websocket_tunnel', 'badvpn_udp', 'checkuser'] %}
+                          {% set item = module_info.get(key, {}) %}
+                          <div class="col-12">
+                            <div class="rounded-2 px-2 py-2"
+                                 style="border:1px solid var(--border-color, rgba(148,163,184,.2)); background:var(--bg-card, rgba(15,23,42,.22));">
+                              <div class="d-grid align-items-center" style="grid-template-columns:minmax(0,1fr) auto auto; gap:10px;">
+                                <span class="text-truncate pe-2" style="color:var(--text-primary, #e5edf5);">{{ item.get('label', key) }}</span>
+                                <span class="badge js-status-badge {{ 'bg-success' if item.get('active') is sameas true else ('bg-danger' if item.get('active') is sameas false else 'bg-secondary') }} text-nowrap" data-module="{{ key }}">
+                                  {{ 'Activo' if item.get('active') is sameas true else ('Inactivo' if item.get('active') is sameas false else 'Sin conexion') }}
+                                </span>
+                                <span class="text-nowrap text-end" style="min-width:88px; color:var(--text-secondary, var(--text-muted, #94a3b8));">{{ item.get('port', '-') }}/{{ item.get('proto', 'tcp') }}</span>
+                              </div>
+                            </div>
+                          </div>
+                          {% endfor %}
+                        </div>
+                      </div>
+                      <div class="row g-3">
+                        <div class="col-12">
+                          <label class="form-label-dark">Accion</label>
+                          <select name="action" class="form-select form-control-dark js-port-action" required>
+                            <option value="open">Abrir / Activar</option>
+                            <option value="close">Cerrar / Desactivar</option>
+                          </select>
+                        </div>
+                        <div class="col-12 js-open-mode-wrap">
+                          <label class="form-label-dark">Modo de apertura</label>
+                          <select name="open_mode" class="form-select form-control-dark js-open-mode">
+                            <option value="port_and_module">Abrir puerto y activar modulo</option>
+                            <option value="port_only">Solo abrir puerto</option>
+                          </select>
+                        </div>
+                        <div class="col-12">
+                          <label class="form-label-dark">Modulo</label>
+                          <select name="module" class="form-select form-control-dark js-module-select" required>
+                            <option value="http_custom" data-default-port="8080">HTTP</option>
+                            <option value="ssl_tunnel" data-default-port="443">SSL Tunnel</option>
+                            <option value="websocket_tunnel" data-default-port="80">WebSocket Tunnel</option>
+                            <option value="badvpn_udp" data-default-port="7300">BadVPN UDPGW</option>
+                            <option value="checkuser" data-default-port="2052">CheckUser</option>
+                          </select>
+                        </div>
+                        <div class="col-12">
+                          <label class="form-label-dark">Puerto</label>
+                          <input type="number" name="port" class="form-control form-control-dark js-module-port"
+                                 value="8080" min="1" max="65535" required>
+                        </div>
+                        <div class="col-12 text-muted small js-port-help">
+                          Se instalara y activara el servicio del modulo en este VPS con systemd y firewall (ufw si existe).
+                        </div>
+                      </div>
+                    </div>
+                  </form>
+                  <div class="modal-footer border-card gap-2 flex-wrap justify-content-between">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+                      <button type="submit" class="btn btn-accent" form="openServerPortForm{{ sv.id }}">
+                        <i class="fas fa-unlock-alt me-2 js-port-submit-icon"></i><span class="js-port-submit-label">Abrir puerto</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-center py-5 text-muted">
+        <i class="fas fa-server fa-3x mb-3 d-block opacity-25"></i>
+        <p>No hay servidores agregados todavía.</p>
+        <button class="btn btn-accent" data-bs-toggle="modal" data-bs-target="#addServerModal">
+          <i class="fas fa-plus me-2"></i>Agregar primer servidor
+        </button>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- ── Modal: Agregar servidor ── -->
+<div class="modal fade" id="addServerModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-card border-card">
+      <div class="modal-header border-card">
+        <h5 class="modal-title"><i class="fas fa-server me-2 text-accent"></i>Agregar Servidor</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('admin.servers') }}">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label-dark">Nombre del Servidor</label>
+              <input type="text" name="name" class="form-control form-control-dark"
+                     placeholder="Ej: VPS-Brasil-01" required maxlength="100">
+            </div>
+            <div class="col-8">
+              <label class="form-label-dark">IP / Hostname</label>
+              <input type="text" name="ip" class="form-control form-control-dark"
+                     placeholder="192.168.1.1" required maxlength="45">
+            </div>
+            <div class="col-4">
+              <label class="form-label-dark">Puerto SSH</label>
+              <input type="number" name="port" class="form-control form-control-dark"
+                     value="22" min="1" max="65535" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label-dark">Usuario SSH</label>
+              <input type="text" name="ssh_user" class="form-control form-control-dark"
+                     value="root" maxlength="50" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label-dark">Contraseña SSH</label>
+              <input type="password" name="ssh_password" class="form-control form-control-dark"
+                     placeholder="••••••••" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label-dark">Descripción (opcional)</label>
+              <input type="text" name="description" class="form-control form-control-dark"
+                     placeholder="Brasil · 1Gbps · OpenVPN+SSH" maxlength="200">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-card">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-accent">
+            <i class="fas fa-plus me-2"></i>Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getServersBasePath() {
+  return window.location.pathname.replace(/\/+$/, '');
+}
+
+function buildServerActionUrl(serverId, suffix) {
+  return `${getServersBasePath()}/${serverId}/${suffix}`;
+}
+
+function resetOpenPortsModal(modalEl) {
+  if (!modalEl) return;
+  const form = modalEl.querySelector('.js-port-form');
+  if (form) {
+    form.reset();
+  }
+
+  const actionSelect = modalEl.querySelector('.js-port-action');
+  const openModeSelect = modalEl.querySelector('.js-open-mode');
+  const moduleSelect = modalEl.querySelector('.js-module-select');
+  const portInput = modalEl.querySelector('.js-module-port');
+
+  if (actionSelect) actionSelect.value = 'open';
+  if (openModeSelect) openModeSelect.value = 'port_and_module';
+  if (moduleSelect) moduleSelect.value = 'http_custom';
+  if (portInput) portInput.value = '8080';
+
+  syncPortActionUI(modalEl.querySelector('.modal-content') || modalEl);
+}
+
+// Test SSH connection
+document.querySelectorAll('.btn-test-conn').forEach(btn => {
+  btn.addEventListener('click', function () {
+    const serverId = this.dataset.id;
+    const testUrl = buildServerActionUrl(serverId, 'test');
+    const icon = this.querySelector('i');
+    icon.className = 'fas fa-spinner fa-spin';
+    fetch(testUrl, { method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      icon.className = 'fas fa-plug';
+      Swal.fire({
+        icon: data.ok ? 'success' : 'error',
+        title: data.ok ? 'Conexión OK' : 'Sin conexión',
+        text: data.msg,
+        background: '#111b27', color: '#e5edf5',
+        confirmButtonColor: '#0f766e'
+      });
+    })
+    .catch(() => { icon.className = 'fas fa-plug'; });
+  });
+});
+
+// Prevent duplicate reboot actions for 60s per server button
+const REBOOT_COOLDOWN_MS = 60000;
+
+function applyRebootCooldown(button, msLeft) {
+  if (!button) return;
+  button.disabled = true;
+  const seconds = Math.max(1, Math.ceil(msLeft / 1000));
+  button.dataset.originalTitle = button.dataset.originalTitle || button.title || 'Reiniciar VPS';
+  button.title = `Espera ${seconds}s para reiniciar de nuevo`;
+  const icon = button.querySelector('i');
+  if (icon) {
+    icon.className = 'fas fa-hourglass-half me-1';
+  }
+
+  setTimeout(() => {
+    button.disabled = false;
+    button.title = button.dataset.originalTitle || 'Reiniciar VPS';
+    if (icon) {
+      icon.className = 'fas fa-rotate-right me-1';
+    }
+  }, msLeft);
+}
+
+function rebootLockKey(serverId) {
+  return `vpnpro_reboot_lock_${serverId}`;
+}
+
+document.querySelectorAll('.js-reboot-btn').forEach(button => {
+  const serverId = button.dataset.serverId;
+  const until = parseInt(localStorage.getItem(rebootLockKey(serverId)) || '0', 10);
+  const now = Date.now();
+  if (until > now) {
+    applyRebootCooldown(button, until - now);
+  }
+});
+
+document.querySelectorAll('.js-reboot-form').forEach(form => {
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const serverId = this.dataset.serverId;
+    const serverName = this.dataset.serverName || 'este VPS';
+    const lockUntil = parseInt(localStorage.getItem(rebootLockKey(serverId)) || '0', 10);
+    const now = Date.now();
+
+    if (lockUntil > now) {
+      return;
+    }
+
+    const css = getComputedStyle(document.body);
+    Swal.fire({
+      icon: 'warning',
+      title: '¿Confirmar?',
+      text: `¿Reiniciar el VPS '${serverName}'? La conexión se cortará temporalmente.`,
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, continuar',
+      cancelButtonText: 'Cancelar',
+      background: css.getPropertyValue('--bg-card').trim() || '#111b27',
+      color: css.getPropertyValue('--text-primary').trim() || '#e5edf5',
+    }).then(result => {
+      if (!result.isConfirmed) return;
+
+      const until = Date.now() + REBOOT_COOLDOWN_MS;
+      localStorage.setItem(rebootLockKey(serverId), String(until));
+      const button = this.querySelector('.js-reboot-btn');
+      applyRebootCooldown(button, REBOOT_COOLDOWN_MS);
+      this.submit();
+    });
+  });
+});
+
+document.querySelectorAll('.js-module-select').forEach((select) => {
+  select.addEventListener('change', function () {
+    const modal = this.closest('.modal-content');
+    if (!modal) return;
+    const input = modal.querySelector('.js-module-port');
+    const opt = this.options[this.selectedIndex];
+    const suggested = opt?.dataset?.defaultPort;
+    if (input && suggested) {
+      input.value = suggested;
+    }
+  });
+});
+
+function syncPortActionUI(modalContent) {
+  if (!modalContent) return;
+  const action = modalContent.querySelector('.js-port-action')?.value || 'open';
+  const openMode = modalContent.querySelector('.js-open-mode')?.value || 'port_and_module';
+  const portInput = modalContent.querySelector('.js-module-port');
+  const help = modalContent.querySelector('.js-port-help');
+  const icon = modalContent.querySelector('.js-port-submit-icon');
+  const label = modalContent.querySelector('.js-port-submit-label');
+  const openModeWrap = modalContent.querySelector('.js-open-mode-wrap');
+  const moduleSelect = modalContent.querySelector('.js-module-select');
+
+  if (action === 'close') {
+    if (openModeWrap) openModeWrap.classList.add('d-none');
+    if (moduleSelect) moduleSelect.required = true;
+    if (portInput) portInput.required = false;
+    if (help) help.textContent = 'Se desactivara el servicio del modulo en este VPS.';
+    if (icon) icon.className = 'fas fa-lock me-2 js-port-submit-icon';
+    if (label) label.textContent = 'Cerrar puerto';
+  } else {
+    if (openModeWrap) openModeWrap.classList.remove('d-none');
+    if (moduleSelect) moduleSelect.required = true;
+    if (portInput) portInput.required = true;
+    if (openMode === 'port_only') {
+      if (help) help.textContent = 'Solo se abrira el puerto en firewall (sin activar el modulo).';
+    } else {
+      if (help) help.textContent = 'Se instalara y activara el servicio del modulo en este VPS con systemd y firewall (ufw si existe).';
+    }
+    if (icon) icon.className = 'fas fa-unlock-alt me-2 js-port-submit-icon';
+    if (label) label.textContent = 'Abrir puerto';
+  }
+}
+
+document.querySelectorAll('.js-port-action').forEach((select) => {
+  syncPortActionUI(select.closest('.modal-content'));
+  select.addEventListener('change', function () {
+    syncPortActionUI(this.closest('.modal-content'));
+  });
+});
+
+document.querySelectorAll('.js-open-mode').forEach((select) => {
+  select.addEventListener('change', function () {
+    syncPortActionUI(this.closest('.modal-content'));
+  });
+});
+
+function paintStatusBadges(modalEl, statusMap, ok) {
+  const badges = modalEl.querySelectorAll('.js-status-badge');
+  badges.forEach((badge) => {
+    const key = badge.dataset.module;
+    if (!ok) {
+      badge.className = 'badge bg-danger js-status-badge';
+      badge.textContent = 'Sin conexion';
+      return;
+    }
+    const active = Boolean(statusMap && statusMap[key]);
+    badge.className = `badge ${active ? 'bg-success' : 'bg-danger'} js-status-badge`;
+    badge.textContent = active ? 'Activo' : 'Inactivo';
+  });
+}
+
+function fetchAndPaintStatuses(modalEl, serverId) {
+  if (!modalEl || !serverId) return Promise.resolve();
+  const statusUrl = buildServerActionUrl(serverId, 'ports-status');
+
+  modalEl.querySelectorAll('.js-status-badge').forEach((b) => {
+    b.className = 'badge bg-secondary js-status-badge';
+    b.textContent = 'Consultando...';
+  });
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+  return fetch(statusUrl, {
+    method: 'GET',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    signal: controller.signal
+  })
+    .then(r => r.json())
+    .then(data => {
+      paintStatusBadges(modalEl, data.status || {}, Boolean(data.ok));
+    })
+    .catch(() => {
+      paintStatusBadges(modalEl, null, false);
+    })
+    .finally(() => {
+      clearTimeout(timeoutId);
+    });
+}
+
+document.querySelectorAll('.modal[id^="portsServerModal"]').forEach((modalEl) => {
+  modalEl.addEventListener('show.bs.modal', function () {
+    resetOpenPortsModal(this);
+
+    let serverId = null;
+    const match = this.id.match(/portsServerModal(\d+)$/);
+    if (match) {
+      serverId = match[1];
+    }
+    if (!serverId) {
+      serverId = this.querySelector('.js-port-form')?.dataset?.serverId || null;
+    }
+    if (!serverId) {
+      paintStatusBadges(this, null, false);
+      return;
+    }
+
+    // Failsafe: nunca dejar badges en "Consultando..." indefinidamente.
+    setTimeout(() => {
+      this.querySelectorAll('.js-status-badge').forEach((b) => {
+        if (b.textContent && b.textContent.trim().toLowerCase() === 'consultando...') {
+          b.className = 'badge bg-danger js-status-badge';
+          b.textContent = 'Sin conexion';
+        }
+      });
+    }, 13000);
+
+    fetchAndPaintStatuses(this, serverId);
+  });
+});
+
+document.querySelectorAll('.js-open-ports-btn').forEach((button) => {
+  button.addEventListener('click', function () {
+    const targetSelector = this.getAttribute('data-bs-target');
+    if (!targetSelector) return;
+    const modalEl = document.querySelector(targetSelector);
+    resetOpenPortsModal(modalEl);
+  });
+});
+
+document.querySelectorAll('.js-port-form').forEach((form) => {
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const modalEl = this.closest('.modal');
+    const serverId = this.dataset.serverId;
+    if (submitBtn) submitBtn.disabled = true;
+
+    const submitData = new FormData(this);
+    const submitUrl = buildServerActionUrl(serverId, 'open-port');
+    const tryPost = (url) => fetch(url, {
+      method: 'POST',
+      body: submitData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+
+    tryPost(submitUrl)
+      .then(async (r) => {
+        const contentType = (r.headers.get('content-type') || '').toLowerCase();
+        if (contentType.includes('application/json')) {
+          const body = await r.json().catch(() => ({}));
+          return { okHttp: r.ok, ok: Boolean(body.ok), msg: body.msg || '' };
+        }
+        const rawText = await r.text().catch(() => '');
+        const shortText = (rawText || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+        return {
+          okHttp: r.ok,
+          ok: false,
+          msg: shortText || `Respuesta no JSON (HTTP ${r.status}).`
+        };
+      })
+      .then(({ okHttp, ok, msg }) => {
+        const success = Boolean(okHttp && ok);
+        Swal.fire({
+          icon: success ? 'success' : 'error',
+          title: success ? 'Operacion completada' : 'No se pudo completar',
+          text: msg || (success ? 'Accion aplicada correctamente.' : 'Error al ejecutar accion.'),
+          background: '#111b27',
+          color: '#e5edf5',
+          confirmButtonColor: '#0f766e'
+        });
+        return fetchAndPaintStatuses(modalEl, serverId);
+      })
+      .catch(() => {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error de red',
+          text: 'No se pudo contactar el panel o el servidor.',
+          background: '#111b27',
+          color: '#e5edf5',
+          confirmButtonColor: '#0f766e'
+        });
+        return fetchAndPaintStatuses(modalEl, serverId);
+      })
+      .finally(() => {
+        if (submitBtn) submitBtn.disabled = false;
+      });
+  });
+});
+</script>
+{% endblock %}

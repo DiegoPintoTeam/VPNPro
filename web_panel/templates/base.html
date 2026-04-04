@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}VPNPro Panel{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- ── Sidebar ─────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <i class="fas fa-shield-halved me-2 text-accent"></i>
+    <span class="fw-bold">VPN<span class="text-accent">Pro</span></span>
+  </div>
+
+  <nav class="sidebar-nav mt-3">
+    {% if current_user.role == 'admin' %}
+      <a href="{{ url_for('admin.dashboard') }}"
+         class="nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+        <i class="fas fa-gauge-high"></i> Dashboard
+      </a>
+      <a href="{{ url_for('admin.servers') }}"
+         class="nav-link {% if request.endpoint == 'admin.servers' %}active{% endif %}">
+        <i class="fas fa-server"></i> Servidores
+      </a>
+      <a href="{{ url_for('admin.resellers') }}"
+         class="nav-link {% if request.endpoint == 'admin.resellers' %}active{% endif %}">
+        <i class="fas fa-users-gear"></i> Revendedores
+      </a>
+      <a href="{{ url_for('admin.users') }}"
+         class="nav-link {% if request.endpoint == 'admin.users' %}active{% endif %}">
+        <i class="fas fa-user-group"></i> Usuarios VPN
+      </a>
+    {% else %}
+      <a href="{{ url_for('reseller.dashboard') }}"
+         class="nav-link {% if request.endpoint == 'reseller.dashboard' %}active{% endif %}">
+        <i class="fas fa-gauge-high"></i> Dashboard
+      </a>
+      <a href="{{ url_for('reseller.users') }}"
+         class="nav-link {% if request.endpoint == 'reseller.users' %}active{% endif %}">
+        <i class="fas fa-user-group"></i> Mis Usuarios
+      </a>
+    {% endif %}
+  </nav>
+
+  <div class="sidebar-footer text-center pt-3" style="border-top:1px solid rgba(148,163,184,.35)">
+    <span class="small d-block fw-semibold" style="font-size:.92rem; color:#f8fafc; line-height:1.5; text-shadow:0 1px 1px rgba(0,0,0,.45)">VPNPro &copy; 2026 · Panel Web</span>
+    <span class="small d-block fw-semibold" style="font-size:.92rem; color:#f8fafc; line-height:1.5; text-shadow:0 1px 1px rgba(0,0,0,.45)">Diego Pinto</span>
+    <span class="small d-block fw-semibold" style="font-size:.92rem; color:#f8fafc; line-height:1.5; text-shadow:0 1px 1px rgba(0,0,0,.45)">(Team)</span>
+    <a href="https://www.diegopintoteam.com" target="_blank" rel="noopener noreferrer" class="small d-block fw-semibold" style="font-size:.92rem; color:#f8fafc; line-height:1.5; text-shadow:0 1px 1px rgba(0,0,0,.45); text-decoration:underline;">www.diegopintoteam.com</a>
+  </div>
+</aside>
+
+<!-- ── Main wrapper ─────────────────────────────────────── -->
+<div class="main-wrapper" id="mainWrapper">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <button class="btn btn-link text-white px-2" id="sidebarToggle" title="Menú">
+      <i class="fas fa-bars fa-lg"></i>
+    </button>
+
+    <div class="ms-auto d-flex align-items-center gap-3">
+      <div class="d-flex align-items-center gap-2">
+        <label for="themeSelect" class="small text-white mb-0 d-flex align-items-center gap-2" style="font-weight:600;">
+          <i class="fas fa-palette fa-lg text-accent" aria-hidden="true" style="font-size:1.3rem;"></i>
+          <span>Tema</span>
+        </label>
+        <select id="themeSelect" class="form-select form-select-sm theme-select" aria-label="Selector de tema">
+          <option value="random_daily">Aleatorio diario</option>
+          <option value="enterprise">Enterprise</option>
+          <option value="carbon">Carbon</option>
+          <option value="oceanic">Oceanic</option>
+          <option value="crimson">Crimson</option>
+          <option value="obsidian">Obsidian</option>
+          <option value="aurora">Aurora</option>
+          <option value="titanium">Titanium</option>
+          <option value="sunset">Sunset</option>
+          <option value="forest">Forest</option>
+          <option value="midnight">Midnight</option>
+          <option value="ruby">Ruby</option>
+          <option value="arctic">Arctic</option>
+          <option value="copper">Copper</option>
+          <option value="neon">Neon</option>
+          <option value="slate">Slate</option>
+        </select>
+      </div>
+
+      {% if current_user.role == 'admin' %}
+      <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#adminAccountModal">
+        <i class="fas fa-crown me-1"></i>Cuenta de administrador
+      </button>
+      {% endif %}
+
+      {% if current_user.role == 'reseller' %}
+      <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#resellerAccountModal">
+        <i class="fas fa-user-pen me-1"></i>Mi cuenta
+      </button>
+      {% endif %}
+
+      <span class="badge badge-role">
+        <i class="fas {% if current_user.role == 'admin' %}fa-crown{% else %}fa-user-tie{% endif %} me-1"></i>
+        {{ current_user.username }}
+      </span>
+      <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-danger">
+        <i class="fas fa-right-from-bracket me-1"></i>Salir
+      </a>
+    </div>
+  </header>
+
+  <!-- Content area -->
+  <main class="content-area">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show mb-3" role="alert">
+          <i class="fas {% if category == 'success' %}fa-circle-check{% elif category == 'danger' %}fa-circle-xmark{% elif category == 'warning' %}fa-triangle-exclamation{% else %}fa-circle-info{% endif %} me-2"></i>
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+
+{% if current_user.is_authenticated and current_user.role == 'admin' %}
+<div class="modal fade" id="adminAccountModal" tabindex="-1" aria-labelledby="adminAccountModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-card border-card">
+      <div class="modal-header border-card">
+        <h5 class="modal-title" id="adminAccountModalLabel">
+          <i class="fas fa-user-shield me-2 text-accent"></i>Cuenta de administrador
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form method="post" action="{{ url_for('admin.update_account') }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Límite de conexiones (opcional)</label>
+            <input type="number" class="form-control" name="max_connections" value="{{ current_user.max_connections or 0 }}" min="0">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Nueva contrasena (opcional)</label>
+            <input type="password" class="form-control" name="new_password" minlength="6" placeholder="Minimo 6 caracteres">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Confirmar nueva contrasena</label>
+            <input type="password" class="form-control" name="confirm_password" minlength="6">
+          </div>
+
+          <div class="mb-0">
+            <label class="form-label">Contrasena actual (requerida)</label>
+            <input type="password" class="form-control" name="current_password" required>
+          </div>
+        </div>
+        <div class="modal-footer border-card">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-accent" type="submit">
+            <i class="fas fa-floppy-disk me-1"></i>Guardar credenciales
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user.is_authenticated and current_user.role == 'reseller' %}
+<div class="modal fade" id="resellerAccountModal" tabindex="-1" aria-labelledby="resellerAccountModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-card border-card">
+      <div class="modal-header border-card">
+        <h5 class="modal-title" id="resellerAccountModalLabel">
+          <i class="fas fa-user-pen me-2 text-accent"></i>Mi cuenta de revendedor
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form method="post" action="{{ url_for('reseller.update_account') }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Nueva contrasena</label>
+            <input type="password" class="form-control" name="new_password" minlength="6" placeholder="Minimo 6 caracteres">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Confirmar nueva contrasena</label>
+            <input type="password" class="form-control" name="confirm_password" minlength="6">
+          </div>
+
+          <div class="mb-0">
+            <label class="form-label">Contrasena actual (requerida)</label>
+            <input type="password" class="form-control" name="current_password" required>
+          </div>
+        </div>
+        <div class="modal-footer border-card">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-accent" type="submit">
+            <i class="fas fa-floppy-disk me-1"></i>Guardar credenciales
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+</body>
+</html>
