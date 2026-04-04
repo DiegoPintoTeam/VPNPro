@@ -19,7 +19,7 @@ El instalador realiza automaticamente:
 
 | Campo | Valor |
 |---|---|
-| URL | `http://TU_IP_VPS:5000` |
+| URL | `http://TU_IP_VPS:80` |
 | Usuario | `VPNPro` |
 | Contrasena | `123456` |
 

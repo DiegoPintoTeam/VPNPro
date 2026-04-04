@@ -41,6 +41,19 @@ def _env_int(name: str, default: int, minimum: int = 1) -> int:
     return max(minimum, parsed)
 
 
+def _env_port(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        port = int(value.strip())
+    except (TypeError, ValueError):
+        return default
+    if 1 <= port <= 65535:
+        return port
+    return default
+
+
 def _env_port_list(name: str, default: str) -> list[int]:
     raw = os.environ.get(name, default)
     values: list[int] = []
@@ -79,6 +92,7 @@ class Config:
     WTF_CSRF_ENABLED = True
     AUTO_SYNC_ENABLED = _env_bool('AUTO_SYNC_ENABLED', True)
     AUTO_SYNC_INTERVAL_MINUTES = _env_int('AUTO_SYNC_INTERVAL_MINUTES', 30, minimum=1)
+    WEB_PANEL_PORT = _env_port('WEB_PANEL_PORT', 80)
     AUTO_OPEN_PORTS_ON_FIRST_CONNECT = _env_bool(
         'AUTO_OPEN_PORTS_ON_FIRST_CONNECT',
         _env_bool('AUTO_OPEN_PORTS_ON_SERVER_CREATE', True),
