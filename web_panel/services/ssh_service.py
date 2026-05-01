@@ -1417,7 +1417,7 @@ WantedBy=multi-user.target
                 'echo -e "[Unit]\\nDescription=BadVPN UDP Gateway\\n'
                 'After=network.target\\n\\n[Service]\\nType=simple\\n'
                 f'ExecStart=/usr/bin/badvpn-udpgw --listen-addr 0.0.0.0:{port}'
-                f' --max-clients {max_clients} --max-connections-for-client 10\\n'
+                f' --max-clients {max_clients} --max-connections-for-client 32\\n'
                 f'Restart=always\\nRestartSec=5s\\nMemoryMax={mem_max}\\n'
                 '\\n[Install]\\nWantedBy=multi-user.target" > /etc/systemd/system/badvpn.service && '
                 'systemctl daemon-reload && systemctl enable badvpn && systemctl start badvpn'
