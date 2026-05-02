@@ -1380,18 +1380,13 @@ WantedBy=multi-user.target
         if not ok:
             return False, f'No se pudo conectar: {msg}'
         try:
-            # Detener procesos badvpn previos (ANTES de descargar)
-            # Best-effort: no importa si el servicio no existe todavía
             self._run(
                 'systemctl disable --now badvpn.service >/dev/null 2>&1; '
                 'pkill -9 -f badvpn-udpgw >/dev/null 2>&1; '
-                'sleep 1; '
                 'rm -f /usr/bin/badvpn-udpgw >/dev/null 2>&1; '
-                'sleep 1; '
                 'true'
             )
 
-            # Cargar binario local del panel para soportar repos privados
             local_badvpn = Path(__file__).resolve().parents[2] / 'Install' / 'badvpn-udpgw'
             if not local_badvpn.exists():
                 return False, f'No se encontró el binario local: {local_badvpn}'
@@ -1400,17 +1395,31 @@ WantedBy=multi-user.target
             if not ok2:
                 return False, err or 'No se pudo subir badvpn-udpgw al servidor'
 
-            # Verificar que el binario esté disponible
             ok2, _, err = self._run('[ -x /usr/bin/badvpn-udpgw ]')
             if not ok2:
                 return False, 'badvpn-udpgw no está disponible en /usr/bin'
 
-            # Crear y habilitar el servicio sistemd (exacto como funciona en el VPS)
+            get_ram_cmd = (
+                "ram_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}'); "
+                "ram_mb=$(( ${ram_kb:-0} / 1024 )); "
+                "if   [ \"$ram_mb\" -ge 3500 ]; then echo 500; "
+                "elif [ \"$ram_mb\" -ge 1800 ]; then echo 250; "
+                "elif [ \"$ram_mb\" -ge 900  ]; then echo 100; "
+                "else echo 50; fi"
+            )
+            _, max_clients_out, _ = self._run(get_ram_cmd)
+            max_clients = (max_clients_out or '').strip()
+            if not max_clients.isdigit():
+                max_clients = '250'
+
+            mem_max = '512M' if int(max_clients) >= 500 else '256M'
             ok2, _, err = self._run(
                 'echo -e "[Unit]\\nDescription=BadVPN UDP Gateway\\n'
                 'After=network.target\\n\\n[Service]\\nType=simple\\n'
-                f'ExecStart=/usr/bin/badvpn-udpgw --listen-addr 127.0.0.1:{port} --max-clients 1000\\n'
-                'Restart=always\\n\\n[Install]\\nWantedBy=multi-user.target" > /etc/systemd/system/badvpn.service && '
+                f'ExecStart=/usr/bin/badvpn-udpgw --listen-addr 0.0.0.0:{port}'
+                f' --max-clients {max_clients} --max-connections-for-client 10\\n'
+                f'Restart=always\\nRestartSec=5s\\nMemoryMax={mem_max}\\n'
+                '\\n[Install]\\nWantedBy=multi-user.target" > /etc/systemd/system/badvpn.service && '
                 'systemctl daemon-reload && systemctl enable badvpn && systemctl start badvpn'
             )
             if not ok2:
