@@ -65,19 +65,6 @@ def _is_already_locked_error(detail: str) -> bool:
     )
 
 
-def _is_passwd_system_error(detail: str) -> bool:
-    return _contains_any(
-        detail,
-        (
-            'no space left on device',
-            'file write error',
-            'cannot lock /etc/passwd',
-            'cannot lock /etc/group',
-            'resource temporarily unavailable',
-        ),
-    )
-
-
 def _is_disk_full_error(detail: str) -> bool:
     return _contains_any(
         detail,
@@ -88,18 +75,18 @@ def _is_disk_full_error(detail: str) -> bool:
             'cannot write',
             'cannot lock /etc/passwd',
             'cannot lock /etc/group',
+            'resource temporarily unavailable',
             'read-only file system',
             'no hay espacio',
         ),
     )
 
 
-def _format_disk_full_message(detail: str, extra_info: str | None = None) -> str:
+def _format_disk_full_message(detail: str) -> str:
     detail_text = (detail or '').strip()
-    suffix = f' {extra_info}' if extra_info else ''
     return (
         'Falta de espacio en el VPS. '
-        f'{detail_text}.{suffix} '
+        f'{detail_text}. '
         'Libera espacio en la raíz del servidor e intenta de nuevo.'
     )
 
@@ -1965,7 +1952,7 @@ WantedBy=multi-user.target
                 detail = (out or err or '').strip()
                 # Idempotente: si el usuario ya no existe en VPS, continuar limpieza.
                 if not _is_missing_user_error(detail):
-                    if _is_disk_full_error(detail) or _is_passwd_system_error(detail):
+                    if _is_disk_full_error(detail):
                         _, disk_out, _ = self._run('df -h / 2>/dev/null | tail -n 1')
                         _, inode_out, _ = self._run('df -i / 2>/dev/null | tail -n 1')
                         disk_info = (disk_out or '').strip()
@@ -1978,7 +1965,7 @@ WantedBy=multi-user.target
                         detail_suffix = f" | {' | '.join(extra)}" if extra else ''
                         return (
                             False,
-                            _format_disk_full_message(detail + detail_suffix, ''),
+                            _format_disk_full_message(detail + detail_suffix),
                         )
                     return False, f"userdel falló: {detail or 'sin detalle remoto'}"
 
