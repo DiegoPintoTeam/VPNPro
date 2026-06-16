@@ -157,7 +157,8 @@ def guard_server_storage_before_account_write(svc) -> tuple[bool, str]:
         return True, ''
 
     used_blocks = int(status.get('blocks_used_percent', -1) or -1)
-    if used_blocks < threshold:
+    used_inodes = int(status.get('inodes_used_percent', -1) or -1)
+    if used_blocks < threshold and used_inodes < threshold:
         return True, ''
 
     attempted_cleanup = False
@@ -172,7 +173,8 @@ def guard_server_storage_before_account_write(svc) -> tuple[bool, str]:
         ok_after, status_after, _ = svc.get_root_storage_status()
         if ok_after:
             used_after = int(status_after.get('blocks_used_percent', -1) or -1)
-            if used_after >= 0 and used_after < threshold:
+            inodes_after = int(status_after.get('inodes_used_percent', -1) or -1)
+            if used_after >= 0 and used_after < threshold and inodes_after >= 0 and inodes_after < threshold:
                 return True, ''
             status = status_after
 

@@ -87,6 +87,33 @@ class SSHServiceIdempotencyTestCase(unittest.TestCase):
         self.assertIn('disco:', msg.lower())
         self.assertIn('inodos:', msg.lower())
 
+    def test_create_user_reports_disk_full_when_sftp_write_fails(self):
+        svc = self._build_service()
+
+        with patch.object(svc, '_connect_if_needed', return_value=(True, 'ok', False)), \
+             patch.object(svc, '_run', side_effect=[
+                 (True, 'NEW', ''),
+                 (True, '', ''),
+                 (True, '', ''),
+                 (True, '', ''),
+             ]), \
+             patch.object(svc, '_sftp_write', side_effect=OSError('No space left on device')):
+            ok, msg = svc.create_user('TEST-USER', 'pass1234', 1, 1)
+
+        self.assertFalse(ok)
+        self.assertIn('falta de espacio', msg.lower())
+
+    def test_change_password_reports_disk_full_when_sftp_write_fails(self):
+        svc = self._build_service()
+
+        with patch.object(svc, 'connect', return_value=(True, 'ok')), \
+             patch.object(svc, '_set_password_stdin', return_value=(True, '')),
+             patch.object(svc, '_sftp_write', side_effect=OSError('No space left on device')):
+            ok, msg = svc.change_password('TEST-USER', 'newpass')
+
+        self.assertFalse(ok)
+        self.assertIn('falta de espacio', msg.lower())
+
     def test_run_disk_housekeeping_skips_below_trigger(self):
         svc = self._build_service()
 

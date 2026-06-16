@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import shlex
+import socket
 import stat
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -74,6 +75,32 @@ def _is_passwd_system_error(detail: str) -> bool:
             'cannot lock /etc/group',
             'resource temporarily unavailable',
         ),
+    )
+
+
+def _is_disk_full_error(detail: str) -> bool:
+    return _contains_any(
+        detail,
+        (
+            'no space left on device',
+            'disk full',
+            'file write error',
+            'cannot write',
+            'cannot lock /etc/passwd',
+            'cannot lock /etc/group',
+            'read-only file system',
+            'no hay espacio',
+        ),
+    )
+
+
+def _format_disk_full_message(detail: str, extra_info: str | None = None) -> str:
+    detail_text = (detail or '').strip()
+    suffix = f' {extra_info}' if extra_info else ''
+    return (
+        'Falta de espacio en el VPS. '
+        f'{detail_text}.{suffix} '
+        'Libera espacio en la raíz del servidor e intenta de nuevo.'
     )
 
 
@@ -358,6 +385,10 @@ class SSHService:
             sftp.chmod(remote_path, stat.S_IRUSR | stat.S_IWUSR)  # 0o600
         except socket.timeout as exc:
             raise TimeoutError(f'SFTP timeout al escribir {remote_path}') from exc
+        except Exception as exc:
+            if _is_disk_full_error(str(exc)):
+                raise OSError('No space left on device') from exc
+            raise
         finally:
             sftp.close()
 
@@ -1866,18 +1897,24 @@ WantedBy=multi-user.target
                 self._run(f'usermod -U {username} 2>/dev/null || passwd -u {username} 2>/dev/null; true')
                 ok2, _, err = self._run(f'chage -E {expiry} {username}')
                 if not ok2:
+                    if _is_disk_full_error(err):
+                        return False, _format_disk_full_message(err)
                     return False, f'Error al actualizar expiración del usuario existente: {err}'
             else:
                 ok2, _, err = self._run(
                     f'useradd --badname -e {expiry} -M -s /bin/false {username}'
                 )
                 if not ok2 and 'already exists' not in err:
+                    if _is_disk_full_error(err):
+                        return False, _format_disk_full_message(err)
                     return False, f'Error al crear usuario del sistema: {err}'
 
             ok2, err2 = self._set_password_stdin(username, password)
             if not ok2:
                 if not already_exists:
                     self._run(f'userdel --force {username} 2>/dev/null')
+                if _is_disk_full_error(err2):
+                    return False, _format_disk_full_message(err2)
                 return False, f'Error al establecer contraseña: {err2}'
 
             # Upsert usuarios.db: replace existing entry or append
@@ -1888,11 +1925,23 @@ WantedBy=multi-user.target
                 if not line.startswith(f'{username} ')
             ]
             new_lines.append(f'{username} {limit}')
-            self._sftp_write('/root/usuarios.db', '\n'.join(new_lines) + '\n')
+            try:
+                self._sftp_write('/root/usuarios.db', '\n'.join(new_lines) + '\n')
+            except OSError as exc:
+                if _is_disk_full_error(str(exc)):
+                    return False, _format_disk_full_message(str(exc))
+                raise
 
             # Store password file
-            self._run('mkdir -p /etc/VPNPro/passwords')
-            self._sftp_write(f'/etc/VPNPro/passwords/{username}', password)
+            ok2, _, err = self._run('mkdir -p /etc/VPNPro/passwords')
+            if not ok2 and _is_disk_full_error(err):
+                return False, _format_disk_full_message(err)
+            try:
+                self._sftp_write(f'/etc/VPNPro/passwords/{username}', password)
+            except OSError as exc:
+                if _is_disk_full_error(str(exc)):
+                    return False, _format_disk_full_message(str(exc))
+                raise
 
             if already_exists:
                 return True, f"Usuario '{username}' actualizado exitosamente (expira: {expiry})"
@@ -1916,7 +1965,7 @@ WantedBy=multi-user.target
                 detail = (out or err or '').strip()
                 # Idempotente: si el usuario ya no existe en VPS, continuar limpieza.
                 if not _is_missing_user_error(detail):
-                    if _is_passwd_system_error(detail):
+                    if _is_disk_full_error(detail) or _is_passwd_system_error(detail):
                         _, disk_out, _ = self._run('df -h / 2>/dev/null | tail -n 1')
                         _, inode_out, _ = self._run('df -i / 2>/dev/null | tail -n 1')
                         disk_info = (disk_out or '').strip()
@@ -1929,9 +1978,7 @@ WantedBy=multi-user.target
                         detail_suffix = f" | {' | '.join(extra)}" if extra else ''
                         return (
                             False,
-                            'userdel falló por bloqueo de /etc/passwd o falta de espacio. '
-                            f'{detail}{detail_suffix}. '
-                            'Libera espacio en la raíz del VPS y reintenta.',
+                            _format_disk_full_message(detail + detail_suffix, ''),
                         )
                     return False, f"userdel falló: {detail or 'sin detalle remoto'}"
 
@@ -1963,8 +2010,15 @@ WantedBy=multi-user.target
         try:
             ok2, err = self._set_password_stdin(username, new_password)
             if not ok2:
+                if _is_disk_full_error(err):
+                    return False, _format_disk_full_message(err)
                 return False, f'Error: {err}'
-            self._sftp_write(f'/etc/VPNPro/passwords/{username}', new_password)
+            try:
+                self._sftp_write(f'/etc/VPNPro/passwords/{username}', new_password)
+            except OSError as exc:
+                if _is_disk_full_error(str(exc)):
+                    return False, _format_disk_full_message(str(exc))
+                raise
             return True, 'Contraseña cambiada exitosamente'
         finally:
             self.disconnect()
@@ -1984,7 +2038,12 @@ WantedBy=multi-user.target
                     new_lines.append(f'{username} {new_limit}')
                 else:
                     new_lines.append(line)
-            self._sftp_write('/root/usuarios.db', '\n'.join(new_lines) + '\n')
+            try:
+                self._sftp_write('/root/usuarios.db', '\n'.join(new_lines) + '\n')
+            except OSError as exc:
+                if _is_disk_full_error(str(exc)):
+                    return False, _format_disk_full_message(str(exc))
+                raise
             return True, 'Límite de conexiones actualizado'
         finally:
             self.disconnect()
@@ -2002,6 +2061,8 @@ WantedBy=multi-user.target
             expiry = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d')
             ok2, _, err = self._run(f'chage -E {expiry} {username}')
             if not ok2:
+                if _is_disk_full_error(err):
+                    return False, _format_disk_full_message(err)
                 return False, f'Error: {err}'
             return True, f'Expiración actualizada a {expiry}'
         finally:
@@ -2018,6 +2079,8 @@ WantedBy=multi-user.target
             expiry = expiry_date.strftime('%Y-%m-%d')
             ok2, _, err = self._run(f'chage -E {expiry} {username}')
             if not ok2:
+                if _is_disk_full_error(err):
+                    return False, _format_disk_full_message(err)
                 return False, f'Error: {err}'
             return True, f'Expiración ajustada a {expiry}'
         finally:
@@ -2047,6 +2110,8 @@ WantedBy=multi-user.target
                     return True, f"Usuario '{username}' no existe en el servidor (bloqueo idempotente)."
                 if _is_already_locked_error(detail):
                     return True, f"Usuario '{username}' ya estaba bloqueado"
+                if _is_disk_full_error(detail):
+                    return False, _format_disk_full_message(detail)
                 return False, f"Error al bloquear usuario: {detail or 'sin detalle remoto'}"
             return True, f"Usuario '{username}' bloqueado"
         finally:
@@ -2123,12 +2188,15 @@ WantedBy=multi-user.target
                 f'usermod -U {username} >/dev/null 2>&1 || passwd -u {username} 2>&1'
             )
             if not ok2:
-                detail = (err or out or '').strip().lower()
-                if _is_missing_user_error(detail):
+                detail = (err or out or '').strip()
+                lower_detail = detail.lower()
+                if _is_missing_user_error(lower_detail):
                     return True, f"Usuario '{username}' no existe en el servidor (desbloqueo idempotente)."
-                if 'already unlocked' in detail or 'password unchanged' in detail:
+                if 'already unlocked' in lower_detail or 'password unchanged' in lower_detail:
                     return True, f"Usuario '{username}' ya estaba desbloqueado"
-                return False, f'Error al desbloquear usuario: {err or out}'
+                if _is_disk_full_error(lower_detail):
+                    return False, _format_disk_full_message(detail)
+                return False, f'Error al desbloquear usuario: {detail or "sin detalle remoto"}'
             return True, f"Usuario '{username}' desbloqueado"
         finally:
             if opened_here:

@@ -697,6 +697,37 @@ class BlockRoutesTestCase(unittest.TestCase):
         self.assertFalse(payload['ok'])
         self.assertIn('almacenamiento crítico', payload['message'].lower())
 
+    def test_admin_delete_route_rejects_when_inodes_are_critical(self):
+        class _FakeInodeCriticalSSHService(_FakeSSHService):
+            def delete_user(self, username: str):
+                raise AssertionError('delete_user no debe ejecutarse cuando el disco está crítico')
+
+            def get_root_storage_status(self):
+                return True, {
+                    'blocks': '/dev/sda1 72000000 36000000 36000000 50% /',
+                    'inodes': '/dev/sda1 1000000 1000000 0 100% /',
+                    'blocks_used_percent': 50,
+                    'inodes_used_percent': 100,
+                }, ''
+
+        login_response = self.client.post(
+            '/login',
+            data={'username': 'VPNPro', 'password': '123456'},
+            follow_redirects=False,
+        )
+        self.assertEqual(login_response.status_code, 302)
+
+        with patch('routes.admin.SSHService', _FakeInodeCriticalSSHService):
+            response = self.client.post(
+                f'/admin/users/{self.user_id}/delete',
+                headers={'X-Requested-With': 'XMLHttpRequest'},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertFalse(payload['ok'])
+        self.assertIn('almacenamiento crítico', payload['message'].lower())
+
     def test_admin_user_diagnostics_returns_json(self):
         login_response = self.client.post(
             '/login',
