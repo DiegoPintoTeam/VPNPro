@@ -3509,7 +3509,6 @@ def create_demo_user():
             status_code=400,
         )
 
-    svc = SSHService(server)
     existing_usernames = load_active_usernames_upper()
 
     created, username, password, msg = provision_demo_user(
