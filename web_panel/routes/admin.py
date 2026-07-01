@@ -3387,6 +3387,11 @@ def create_user():
     if not can_charge:
         return _respond_user_action('admin.users', charge_msg, 'danger', ok=False, status_code=400)
 
+    svc = SSHService(server)
+    can_write, guard_msg = guard_server_storage_before_account_write(svc)
+    if not can_write:
+        return _respond_user_action('admin.users', guard_msg, 'danger', ok=False, status_code=400)
+
     # Check if demo already exists for this reseller
     if package_code == 'demo_1h':
         existing_demo = VpnUser.query.filter_by(reseller_id=reseller.id, is_active=True).filter(
@@ -3485,6 +3490,11 @@ def create_demo_user():
             return _respond_user_action('admin.users', 'Revendedor inválido.', 'danger', ok=False, status_code=400)
     else:
         reseller = _get_or_create_system_reseller(server_id)
+
+    svc = SSHService(server)
+    can_write, guard_msg = guard_server_storage_before_account_write(svc)
+    if not can_write:
+        return _respond_user_action('admin.users', guard_msg, 'danger', ok=False, status_code=400)
 
     # Check if demo already exists for this reseller
     existing_demo = VpnUser.query.filter_by(reseller_id=reseller.id, is_active=True).filter(

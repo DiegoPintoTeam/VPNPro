@@ -397,6 +397,11 @@ def create_user():
         if not valid_demo:
             return _respond_reseller_users_action(demo_msg, demo_category, ok=False, status_code=400)
 
+    svc = SSHService(r.server)
+    can_write, guard_msg = guard_server_storage_before_account_write(svc)
+    if not can_write:
+        return _respond_reseller_users_action(guard_msg, 'danger', ok=False, status_code=400)
+
     if credits_needed > 0 and (r.panel_credits or 0) < credits_needed:
         return _respond_reseller_users_action(
             msg_credits_insufficient(credits_needed, r.panel_credits or 0),
@@ -405,7 +410,6 @@ def create_user():
             status_code=400,
         )
 
-    svc = SSHService(r.server)
     create_days = package.get('days', 1)
     ok, msg = svc.create_user(username, password, create_days, limit)
 
@@ -475,6 +479,10 @@ def create_demo_user():
         return _respond_reseller_users_action(demo_msg, demo_category, ok=False, status_code=400)
 
     svc = SSHService(r.server)
+    can_write, guard_msg = guard_server_storage_before_account_write(svc)
+    if not can_write:
+        return _respond_reseller_users_action(guard_msg, 'danger', ok=False, status_code=400)
+
     existing_usernames = load_active_usernames_upper()
 
     created, username, password, msg = provision_demo_user(
